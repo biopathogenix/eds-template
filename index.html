@@ -208,6 +208,20 @@
     footer.site-footer { text-align: center; color: var(--ink-500); font-size: .78rem; padding: 0 1rem 2rem; }
 
     @media (max-width: 850px) { .two-col { grid-template-columns: 1fr; } .grid-3, .grid { grid-template-columns: 1fr; } }
+
+    /* Centered notices and confirmations */
+    button.danger-outline { background:#fff; color:#b42332; border:1px solid #e6a1a8; box-shadow:none; }
+    button.danger-outline:hover { background:#fff1f2; border-color:#b42332; box-shadow:none; filter:none; }
+    .notice-overlay { position:fixed; inset:0; z-index:10000; display:flex; justify-content:center; align-items:center; padding:20px; background:rgba(6,24,44,.58); backdrop-filter:blur(5px); }
+    .notice-overlay[hidden] { display:none; }
+    .notice-dialog { width:min(100%,440px); background:#fff; border-radius:18px; padding:27px; box-shadow:0 22px 75px rgba(3,19,38,.34); border:1px solid #e2e8f0; text-align:center; animation:noticePop .18s ease-out; }
+    @keyframes noticePop { from {opacity:0;transform:translateY(12px) scale(.975)} to {opacity:1;transform:translateY(0) scale(1)} }
+    .notice-symbol { width:54px;height:54px;display:grid;place-items:center;margin:0 auto 15px;border-radius:50%;background:#fff2df;color:#b76013;font-size:27px;font-weight:700; }
+    .notice-dialog h2 { color:var(--bp-navy-800); font-size:1.16rem; margin:0 0 9px; }
+    .notice-dialog p { color:var(--ink-700);font-size:.92rem;margin:0 0 23px;white-space:pre-wrap;overflow-wrap:anywhere; }
+    .notice-actions { display:flex;justify-content:center;gap:10px; }
+    .notice-actions button { min-width:110px; }
+    @media (prefers-reduced-motion:reduce) {.notice-dialog {animation:none;}}
   </style>
 </head>
 <body>
@@ -220,10 +234,6 @@
           </div>
           <span class="bp-brand-sub">Molecular Diagnostics</span>
         </div>
-        <label class="logo-upload-btn" title="Optional: replace with your local PNG/SVG logo file">
-          Replace Logo
-          <input type="file" id="logoUploadInput" accept="image/*" style="display:none;" />
-        </label>
       </div>
       <h1>QuantStudio PIS Plate Setup Exporter</h1>
       <p>Upload multiple Product Information Sheets, assign panel targets across one plate, and export a QuantStudio plate layout with PIS/vial comments.</p>
@@ -262,20 +272,33 @@
       <button type="button" class="secondary sm" id="selectAllWells">Select all</button>
       <button type="button" class="secondary sm" id="clearSelection">Deselect all</button>
       <button type="button" class="secondary sm" id="clearAssigned">Clear selected wells</button>
+      <button type="button" class="danger-outline sm" id="clearAllAssigned">Clear all wells</button>
       <span class="muted" id="wellSelectionStatus">No wells selected</span>
     </div>
     <div class="two-col">
       <div class="panel">
         <strong style="font-size:13px;color:var(--bp-navy-800);">Sample &amp; sequential placement</strong>
         <div class="grid" style="margin-top:8px;">
-          <div><label for="studyPrefix">Sample prefix</label><select id="studyPrefix"><option value="Accuracy" selected>Accuracy</option><option value="LOD">LOD</option><option value="Intra">Intra</option><option value="Inter">Inter</option><option value="Lin">Lin</option><option value="Interference">Interference</option><option value="Stability">Stability</option></select></div>
+          <div><label for="studyPrefixPreset">Sample prefix</label>
+            <select id="studyPrefixPreset" aria-label="Choose a default sample prefix or Custom">
+              <option value="Accuracy">Accuracy</option>
+              <option value="LOD">LOD</option>
+              <option value="Intra">Intra</option>
+              <option value="Inter">Inter</option>
+              <option value="Lin">Lin</option>
+              <option value="Interference">Interference</option>
+              <option value="Stability">Stability</option>
+              <option value="__custom__">Custom / Type manually…</option>
+            </select>
+            <input type="text" id="studyPrefix" value="Accuracy" placeholder="Type your sample prefix" autocomplete="off" maxlength="100" style="display:none;margin-top:7px;" aria-label="Custom sample prefix" />
+            <div class="muted" style="margin-top:4px;">Choose a default or select Custom to enter your own.</div></div>
           <div><label for="replicateCount">Number of wells</label><input type="number" id="replicateCount" min="1" max="384" value="3" /></div>
         </div>
-        <div class="grid" style="margin-top:8px;">
+        <div class="grid" style="margin-top:8px;grid-template-columns:minmax(0,1fr);">
           <div>
             <label for="startWellInput">Start well</label>
-            <div style="display:flex;gap:4px;align-items:stretch;">
-              <input type="text" id="startWellInput" list="startWellList" value="A1" placeholder="e.g. A1" autocomplete="off" spellcheck="false" style="text-transform:uppercase;font-family:'JetBrains Mono',monospace;" />
+            <div style="display:flex;gap:8px;align-items:stretch;min-width:0;">
+              <input type="text" id="startWellInput" list="startWellList" value="A1" placeholder="e.g. A1" autocomplete="off" spellcheck="false" style="text-transform:uppercase;font-family:'JetBrains Mono',monospace;flex:1 1 auto;min-width:110px;width:100%;" />
               <button type="button" id="useSelectedStartWell" class="secondary sm" title="Set start well from the currently clicked well on the plate" style="white-space:nowrap;padding:0 8px;">From plate</button>
             </div>
             <datalist id="startWellList"></datalist>
@@ -324,6 +347,18 @@
 
   <footer class="site-footer">BioPathogenix · QuantStudio PIS Plate Setup Exporter</footer>
 
+
+  <div class="notice-overlay" id="noticeOverlay" hidden>
+    <section class="notice-dialog" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle" aria-describedby="noticeMessage">
+      <div class="notice-symbol" aria-hidden="true">!</div>
+      <h2 id="noticeTitle">Notice</h2>
+      <p id="noticeMessage"></p>
+      <div class="notice-actions">
+        <button type="button" id="noticeCancel" class="secondary" hidden>Cancel</button>
+        <button type="button" id="noticeAccept">OK</button>
+      </div>
+    </section>
+  </div>
   <script>
     // Configure PDF.js worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -501,6 +536,45 @@
     let selectedWells = new Set();
     let lastClicked = null;
     const $ = id => document.getElementById(id);
+
+    // Accessible modal notices replace browser-native alert and confirm boxes.
+    let noticeResolver = null;
+    let noticePreviousFocus = null;
+    function openNotice(message, title, confirmMode) {
+      if (noticeResolver) noticeResolver(false);
+      noticePreviousFocus = document.activeElement;
+      $('noticeTitle').textContent = title || (confirmMode ? 'Please confirm' : 'Notice');
+      $('noticeMessage').textContent = String(message);
+      $('noticeCancel').hidden = !confirmMode;
+      $('noticeAccept').textContent = confirmMode ? 'Continue' : 'OK';
+      $('noticeOverlay').hidden = false;
+      document.body.style.overflow = 'hidden';
+      $('noticeAccept').focus();
+      return new Promise(resolve => {noticeResolver = resolve;});
+    }
+    function closeNotice(result) {
+      if ($('noticeOverlay').hidden) return;
+      $('noticeOverlay').hidden = true;
+      document.body.style.overflow = '';
+      const resolve = noticeResolver;noticeResolver = null;
+      if (noticePreviousFocus && noticePreviousFocus.isConnected) noticePreviousFocus.focus();
+      if (resolve) resolve(result);
+    }
+    function showNotice(message, title='Attention') {return openNotice(message,title,false);}
+    function showConfirm(message,title='Please confirm') {return openNotice(message,title,true);}
+    $('noticeAccept').addEventListener('click',()=>closeNotice(true));
+    $('noticeCancel').addEventListener('click',()=>closeNotice(false));
+    $('noticeOverlay').addEventListener('click',e=>{if(e.target===$('noticeOverlay'))closeNotice(false);});
+    document.addEventListener('keydown',e=>{
+      if($('noticeOverlay').hidden)return;
+      if(e.key==='Escape'){e.preventDefault();closeNotice(false);}
+      if(e.key==='Tab'){
+        const buttons=[$('noticeCancel'),$('noticeAccept')].filter(b=>!b.hidden);
+        const current=buttons.indexOf(document.activeElement);
+        e.preventDefault();buttons[(current+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();
+      }
+    });
+
     const getCols = () => templateWellCount === 96 ? 12 : 24;
     const getRows = () => templateWellCount === 96 ? 8 : 16;
     const wellName = idx => String.fromCharCode(65 + Math.floor(idx / getCols())) + (1 + idx % getCols());
@@ -654,7 +728,7 @@
     });
     $('useSelectedStartWell').addEventListener('click', () => {
       const first = [...selectedWells].sort((a,b)=>a-b)[0];
-      if (first === undefined) return alert('Click a well on the plate first.');
+      if (first === undefined) return showNotice('Click a well on the plate first.');
       setStartWellIndex(first);
       $('editMessage').textContent = `Start well set to ${wellName(first)}.`;
     });
@@ -674,20 +748,45 @@
     });
     $('selectAllWells').onclick=()=>{selectedWells=new Set(Array.from({length:templateWellCount},(_,i)=>i));renderPlate();};
     $('clearSelection').onclick=()=>{selectedWells.clear();renderPlate();};
+    $('clearAllAssigned').onclick=async()=>{
+      if(!wellAssignments.size) return showNotice('There are no assigned wells to clear.', 'Nothing to clear');
+      if(!(await showConfirm('This will erase every well assignment on the plate. Continue?', 'Clear all wells?'))) return;
+      wellAssignments.clear();
+      selectedWells.clear();
+      lastClicked=null;
+      renderPlate();
+      $('editMessage').textContent='All well assignments cleared.';
+    };
     $('clearAssigned').onclick=()=>{
-      if(!selectedWells.size)return alert('Select wells to clear.');
+      if(!selectedWells.size)return showNotice('Select wells to clear.');
       for(const i of selectedWells)wellAssignments.delete(i);
       renderPlate();$('editMessage').textContent='Cleared selected wells.';
     };
+    // Keep the standard dropdown options and reveal free text only when requested.
+    const samplePrefixDefaults = ['Accuracy','LOD','Intra','Inter','Lin','Interference','Stability'];
+    function setSamplePrefix(value) {
+      const isDefault = samplePrefixDefaults.includes(value);
+      $('studyPrefixPreset').value = isDefault ? value : '__custom__';
+      $('studyPrefix').style.display = isDefault ? 'none' : 'block';
+      $('studyPrefix').value = value;
+    }
+    $('studyPrefixPreset').addEventListener('change', () => {
+      const selected = $('studyPrefixPreset').value;
+      if (selected === '__custom__') {
+        $('studyPrefix').value = '';
+        $('studyPrefix').style.display = 'block';
+        $('studyPrefix').focus();
+      } else {
+        setSamplePrefix(selected);
+      }
+    });
     $('loadSelected').onclick=()=>{
       const first=[...selectedWells].sort((a,b)=>a-b)[0];
-      if(first===undefined)return alert('Select a well first.');
+      if(first===undefined)return showNotice('Select a well first.');
       const a=wellAssignments.get(first);
-      if(!a)return alert(`${wellName(first)} has no assignment.`);
+      if(!a)return showNotice(`${wellName(first)} has no assignment.`);
       const basePrefix = a.sample.replace(/_\d+$/, '');
-      if ([...$('studyPrefix').options].some(o => o.value === basePrefix)) {
-        $('studyPrefix').value = basePrefix;
-      }
+      setSamplePrefix(basePrefix);
       $('assignedTask').value=a.task;
       $('activePanel').value = extractedPisTargets[a.targetIds[0]]?.panelId || '';
       targetPickIds = new Set(a.targetIds);
@@ -703,7 +802,7 @@
         for(const i of selectedWells)wellAssignments.set(i,{sample,task:$('assignedTask').value,targetIds:[...ids]});
         $('editMessage').textContent=`Updated ${selectedWells.size} well(s) with "${sample}".`;
         renderPlate();
-      }catch(err){alert(err.message);$('editMessage').textContent=err.message;}
+      }catch(err){showNotice(err.message);$('editMessage').textContent=err.message;}
     };
     $('fillDirection').addEventListener('change', () => {
       $('fillDirectionHint').textContent = $('fillDirection').value === 'vertical'
@@ -733,7 +832,7 @@
         selectedWells=new Set(positions);
         $('editMessage').textContent=`Assigned ${count} ${direction} wells starting at ${wellName(start)} (ending at ${wellName(positions[positions.length-1])}).`;
         renderPlate();
-      }catch(err){alert(err.message);$('editMessage').textContent=err.message;}
+      }catch(err){showNotice(err.message);$('editMessage').textContent=err.message;}
     };
     function refreshPanels() {
       const sel=$('activePanel'); const current=sel.value;
@@ -744,9 +843,9 @@
       if(!document.querySelector('.panel-fill-row') && pisPanels.length) addPanelFillRow();
       for(const row of document.querySelectorAll('.panel-fill-row')) updatePanelRowOptions(row);
     }
-    $('plateFormat').onchange=e=>{
+    $('plateFormat').onchange=async e=>{
       const next=Number(e.target.value);
-      if(wellAssignments.size && !confirm('Changing plate size will clear existing well assignments. Continue?')) {
+      if(wellAssignments.size && !(await showConfirm('Changing plate size will clear existing well assignments. Continue?', 'Change plate format?'))) {
         e.target.value=String(templateWellCount); return;
       }
       templateWellCount=next;wellAssignments.clear();selectedWells.clear();lastClicked=null;
@@ -839,18 +938,9 @@
         exportAdvancedComments();
         log('Also exported separate target and sample Comments TSV files for the two Advanced Setup tables.');
         log(`Exported ${file}: ${wellAssignments.size} configured wells, ${assignments.length} assay rows.`);
-      }catch(err){log('Export blocked: '+err.message);alert(err.message);}
+      }catch(err){log('Export blocked: '+err.message);showNotice(err.message);}
     };
 
-    $('logoUploadInput').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        $('customLogoImg').src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
     updateStartWells();renderTargetPicks();renderPlate();
   </script>
 </body>
