@@ -287,6 +287,7 @@
       <label><input type="radio" name="configSource" value="pdf" checked> PDF upload</label>
       <label><input type="radio" name="configSource" value="excel"> Excel / CSV upload</label>
       <label><input type="radio" name="configSource" value="paste"> Paste text</label>
+      <label><input type="radio" name="configSource" value="parts"> Part numbers (Excel / CSV / paste)</label>
     </div>
     <div id="pdfSourceArea">
       <label for="pisFile">Upload PIS PDF</label>
@@ -312,6 +313,19 @@
         <button type="button" id="configClear" class="secondary sm">Clear</button>
       </div>
     </div>
+    <div id="partsSourceArea" hidden>
+      <label for="partsPanelName">Panel / kit name (used only when the file has no panel title)</label>
+      <input id="partsPanelName" type="text" value="" placeholder="e.g. 5-K-HIVQ1-250" />
+      <label for="partsFile" style="margin-top:10px">Upload part-number file (Excel, CSV, or TSV)</label>
+      <input id="partsFile" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" />
+      <div style="position:relative;margin-top:12px;">
+        <label for="partSearch">Search part number</label>
+        <input id="partSearch" type="text" role="combobox" aria-expanded="false" aria-controls="partSuggest" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Type a part number, or several separated by commas…" disabled />
+        <ul id="partSuggest" role="listbox" hidden style="position:absolute;left:0;right:0;z-index:50;margin:2px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid var(--ink-200);border-radius:8px;box-shadow:var(--shadow-md);max-height:260px;overflow:auto;"></ul>
+        <div class="muted" id="partSearchStatus" role="status" aria-live="polite" style="margin-top:4px;">Upload the part-number file above; it becomes the searchable catalog.</div>
+        <div id="partChips" class="panel-library" aria-label="Selected part numbers"></div>
+      </div>
+    </div>
     <div id="configReviewArea" hidden>
       <div class="controls-row"><button type="button" id="configLoad" disabled>Apply preview edits to manual assignment</button></div>
     </div>
@@ -323,7 +337,6 @@
 
   <fieldset>
     <legend><span class="step-num">3</span> Interactive Plate Layout &amp; Well Assignment</legend>
-    <div class="preview-box" id="plateHelp">Click wells to select; Ctrl/Cmd-click to add or remove wells; Shift-click selects a rectangular block. Keyboard: arrow keys move, Enter/Space selects, Shift+arrows select a block. Use the editor to assign sample names and specific PIS targets. No wells are prefilled.</div>
     <div class="controls-row">
       <button type="button" class="secondary sm" id="selectAllWells">Select all</button>
       <button type="button" class="secondary sm" id="clearSelection">Deselect all</button>
@@ -347,7 +360,7 @@
               <option value="__custom__">Custom / Type manually…</option>
             </select>
             <input type="text" id="studyPrefix" value="Accuracy" placeholder="Type your sample prefix" autocomplete="off" maxlength="100" style="display:none;margin-top:7px;" aria-label="Custom sample prefix" />
-            <div class="muted" id="prefixHint" style="margin-top:4px;">Choose a default or select Custom to enter your own.</div></div>
+            <div class="muted" id="prefixHint" style="margin-top:4px;"></div></div>
           <div><label for="replicateCount">Number of wells</label><input type="number" id="replicateCount" min="1" max="384" value="3" /></div>
         </div>
         <div class="grid" style="margin-top:8px;grid-template-columns:minmax(0,1fr);">
@@ -362,15 +375,17 @@
           </div>
           <div><label for="fillDirection">Fill direction</label><select id="fillDirection"><option value="horizontal" selected>Horizontal (A1, A2, A3…)</option><option value="vertical">Vertical (A1, B1, C1…)</option></select></div>
         </div>
-        <div class="muted" id="fillDirectionHint" style="margin-top:6px;">Horizontal: fills across a row, then continues on the next row. Only the chosen wells are replaced.</div>
+        <div class="muted" id="fillDirectionHint" style="margin-top:6px;"></div>
         <hr class="sep" />
         <label for="assignedTask">Task</label>
         <select id="assignedTask"><option value="UNKNOWN" selected>UNKNOWN</option><option value="NTC">NTC</option><option value="STANDARD">STANDARD</option></select>
+        <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-weight:600;cursor:pointer;"><input type="checkbox" id="allVialsMode" style="margin-top:3px;" /><span>Use all vials of the selected panel<br>
+        </span></label>
         <label for="activePanel" style="margin-top:10px;">Panel / PIS for manual assignment</label>
         <select id="activePanel"><option value="">Import a configuration first</option></select>
         <div class="field-label" id="targetsLabel" style="margin-top:10px;">Targets to assign</div>
         <div id="wellTargetPicks" class="target-picks" role="group" aria-labelledby="targetsLabel" tabindex="0"><span class="muted">Import a vial configuration first.</span></div>
-        <div class="controls-row">
+                <div class="controls-row">
           <button type="button" id="autoFill">Fill sequential wells</button>
           <button type="button" id="assignToWells" class="secondary sm">Apply to selected wells</button>
           <button type="button" id="loadSelected" class="secondary sm">Load first selected</button>
@@ -380,7 +395,7 @@
       <div>
         <div class="plate-head"><div class="summary-line" id="plateSummary">0 / 384 wells assigned</div><div class="legend" role="list" aria-label="Plate legend"><span class="pill" role="listitem">Empty</span> <span class="pill p-vial" role="listitem">Assigned (well color = vial)</span> <span class="pill p-sel" role="listitem">Selected (dark ring)</span></div></div>
         <div class="plate-scroll"><div id="plateGrid" class="plate-grid" role="group" aria-label="Plate wells. Use arrow keys to move between wells, Enter or Space to select, Shift plus arrow keys to select a block, Escape to deselect."></div></div>
-        
+
       </div>
     </div>
   </fieldset>
@@ -396,7 +411,6 @@
      <div class="export-bar" style="margin-top:1rem;">
       <button id="processBtn">⬇ Download Plate Layout (.txt)</button>
     </div>
-    <div class="preview-box">The plate TXT stores <strong>Kit name + Vial number</strong> as well-level Comments. Two additional tab-delimited files provide the <strong>Targets → Comments</strong> and <strong>Samples → Comments</strong> values separately. <strong>Important:</strong> QuantStudio v1.5.3 does not document automatic mapping of plate TXT Comments into those Advanced Setup fields; use the TSV files to copy values into the corresponding cells.</div>
     <pre id="log" role="log" aria-live="polite" aria-label="Activity log" tabindex="0">Ready. Upload one or more PIS PDFs, assign targets to wells, and export your plate layout.</pre>
   </fieldset>
   </main>
@@ -448,6 +462,10 @@
       return vialColorMap.get(key);
     }
     let currentConfigSource = 'pdf';
+    let partsFileName = '';
+    let partsCatalog = [];   // [{key, partNumber, kit, set, rows}] built from the part-number file
+    let partsPanelDefs = []; // panels exactly as read from the file
+    let partsSelected = [];  // catalog keys, in the order added
     let importedConfigPanelId = null;
     let currentImportToken = 0;
     function clearImportedConfiguration() {
@@ -455,6 +473,8 @@
       extractedPisTargets.length = 0;
       vialColorMap.clear();
       importedConfigPanelId = null;
+      partsCatalog = []; partsPanelDefs = []; partsSelected = [];
+      if (typeof renderPartChips === 'function') { renderPartChips(); $('partSearchStatus').textContent=''; }
       stagedConfig = [];
       wellAssignments.clear();
       selectedWells.clear();
@@ -466,7 +486,7 @@
       $('pisStatus').textContent = '';
     }
     function switchConfigSource(source) {
-      if (!['pdf','excel','paste'].includes(source) || currentConfigSource === source) return;
+      if (!['pdf','excel','paste','parts'].includes(source) || currentConfigSource === source) return;
       currentConfigSource = source;
       currentImportToken++;
       clearImportedConfiguration();
@@ -476,7 +496,9 @@
       $('pdfSourceArea').hidden = source !== 'pdf';
       $('excelSourceArea').hidden = source !== 'excel';
       $('pasteSourceArea').hidden = source !== 'paste';
-      $('configReviewArea').hidden = source === 'pdf';
+      $('partsSourceArea').hidden = source !== 'parts';
+      $('partsFile').value = ''; $('partSearch').value = ''; $('partSearch').disabled = true; hideSuggest();
+      $('configReviewArea').hidden = source === 'pdf' || source === 'parts';
       $('configStatus').textContent = `Selected ${source.toUpperCase()} source. Import a configuration to populate Panel / PIS for manual assignment.`;
     }
     document.querySelectorAll('input[name="configSource"]').forEach(radio => radio.addEventListener('change', e => {
@@ -834,7 +856,7 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
         const vialColor = getVialColor(targets[0].panelId, vial);
         return `<details class="vial-pick-group" data-vial-group="${esc(vial)}" ${openedVials.has(vial) ? 'open' : ''}>
           <summary class="vial-pick-head"><input type="checkbox" data-vial-select="${esc(vial)}" aria-label="Select all targets in vial set ${esc(vial)}" ${allChosen ? 'checked' : ''} />
-          <strong><span class="vial-swatch" style="background:${vialColor};"></span>Vial Set ${esc(vial)} (${targets.length} targets)</strong></summary>
+          <strong><span class="vial-swatch" style="background:${vialColor};"></span>Vial Set ${esc(vial)}${targets[0].partNumber?` · P/N ${esc(targets[0].partNumber)}`:''}${targets[0].origSet?` · ${esc(targets[0].panelName)}`:''} (${targets.length} targets)</strong></summary>
           <div class="vial-pick-items">${targets.map(t=>`<label><input type="checkbox" data-tid="${t.id}" ${targetPickIds.has(t.id) ? 'checked' : ''} />
           <span>${esc(t.target)} <small>(${esc(t.dye)})</small></span></label>`).join('')}</div>
         </details>`;
@@ -876,7 +898,6 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
       if (targets.some(t => !t)) throw new Error('One or more selected targets are no longer in the PIS.');
       if (new Set(targets.map(t => `${t.panelId}::${t.vialSet}`)).size !== 1) throw new Error('One well must use targets from a single vial set.');
       if (new Set(targets.map(t => t.dye.toUpperCase())).size !== targets.length) throw new Error('A well cannot contain two targets with the same reporter dye.');
-      if (targets.length > 4) throw new Error('A well cannot contain more than four targets.');
     }
     function fitPlateDimensions() {
       const cols = getCols();
@@ -916,7 +937,7 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
           const vialSet = primaryTarget?.vialSet || '';
           const targetList = a ? a.targetIds.map(id=>extractedPisTargets[id]?.target).filter(Boolean).join(', ') : '';
           const desc = a
-            ? `${wellName(i)} | Sample: ${a.sample} | Panel: ${panelName} | Vial: ${vialSet} | Targets: ${targetList}`
+            ? `${wellName(i)} | Sample: ${a.sample} | Panel: ${panelName} | Vial: ${primaryTarget?.origSet || vialSet}${primaryTarget?.partNumber?` (P/N ${primaryTarget.partNumber})`:''} | Targets: ${targetList}`
             : `${wellName(i)} | Empty`;
           const classes = ['well', a ? 'has-data' : '', selectedWells.has(i) ? 'active':''].join(' ');
           const vialColor = primaryTarget ? getVialColor(primaryTarget.panelId, primaryTarget.vialSet) : '';
@@ -1074,6 +1095,7 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
     });
     $('autoFill').onclick=()=>{
       try {
+        if ($('allVialsMode').checked) return fillAllVials();
         const ids=pickedTargetIds();validateTargetCombo(ids);
         const parsedStart = parseWellCoordinate($('startWellInput').value);
         if (parsedStart === null) throw new Error(`Enter a valid start well between A1 and ${wellName(templateWellCount - 1)}.`);
@@ -1097,6 +1119,304 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
         renderPlate();
       }catch(err){showNotice(err.message);$('editMessage').textContent=err.message;}
     };
+    function panelVialGroups() {
+      const panelId=$('activePanel').value;
+      if(!panelId) throw new Error('Select a panel first.');
+      const groups=new Map();
+      for(const t of activeTargets().filter(t=>t.panelId===panelId)){
+        if(!groups.has(t.vialSet)) groups.set(t.vialSet,[]);
+        groups.get(t.vialSet).push(t.id);
+      }
+      const vials=[...groups.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]),undefined,{numeric:true}));
+      if(!vials.length) throw new Error('This panel has no vials.');
+      for(const [v,ids] of vials){
+        try{validateTargetCombo(ids);}catch(err){throw new Error(`Vial ${v}: ${err.message}`);}
+      }
+      return vials;
+    }
+    function fillAllVials() {
+      const vials=panelVialGroups();
+      const parsedStart=parseWellCoordinate($('startWellInput').value);
+      if(parsedStart===null) throw new Error(`Enter a valid start well between A1 and ${wellName(templateWellCount-1)}.`);
+      setStartWellIndex(parsedStart);
+      const count=Number($('replicateCount').value);
+      if(!Number.isInteger(count)||count<1) throw new Error('Enter a whole number of wells (replicates).');
+      const direction=$('fillDirection').value;
+      const cols=getCols(), rows=getRows();
+      const r0=Math.floor(parsedStart/cols), c0=parsedStart%cols;
+      const horizontal=direction!=='vertical';
+      const lineLen=horizontal?cols-c0:rows-r0, lines=horizontal?rows-r0:cols-c0;
+      if(count>lineLen) throw new Error(`Only ${lineLen} wells fit per ${horizontal?'row':'column'} from ${wellName(parsedStart)}. Reduce the number of wells or move the start well.`);
+      if(vials.length>lines) throw new Error(`${vials.length} vials need ${vials.length} ${horizontal?'rows':'columns'}, but only ${lines} remain from ${wellName(parsedStart)}.`);
+      const prefix=$('studyPrefix').value.trim()||'sample', task=$('assignedTask').value;
+      const positions=[];
+      vials.forEach(([v,ids],k)=>{
+        for(let n=0;n<count;n++){
+          const pos=horizontal?(r0+k)*cols+(c0+n):(r0+n)*cols+(c0+k);
+          positions.push(pos);
+          wellAssignments.set(pos,{sample:`${prefix}_${n+1}`,task,targetIds:[...ids]});
+        }
+      });
+      selectedWells=new Set(positions);
+      $('editMessage').textContent=`Filled ${vials.length} vial(s) × ${count} replicate(s), one ${horizontal?'row':'column'} per vial, from ${wellName(parsedStart)} (${positions.length} wells).`;
+      renderPlate();
+    }
+    $('allVialsMode').addEventListener('change',()=>{
+      const on=$('allVialsMode').checked;
+      $('wellTargetPicks').style.opacity=on?'.45':'';
+      $('wellTargetPicks').style.pointerEvents=on?'none':'';
+      $('assignToWells').disabled=on;
+    });
+    // ---------- Part-number import ----------
+    // Reads blocks that start with a "Target" header cell. Within a block: Dye (the "QuantStudio"
+    // column when several dye columns exist), Set / Vial, Part Number. Blank (merged) Set and
+    // Part Number cells carry down until a new Set starts.
+    function partNumberPanelsFromRows(rows, fallbackName) {
+      const norm = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const grid = rows.map(r => (r || []).map(norm));
+      const isTargetHdr = v => /^targets?$/i.test(v);
+      let hdrRow = grid.findIndex(r => r.some(isTargetHdr));
+      const panels = [], issues = [];
+      if (hdrRow < 0) return {panels, issues: ['No "Target" header found']};
+      const hdrCols = grid[hdrRow].map((v,i)=>isTargetHdr(v)?i:-1).filter(i=>i>=0);
+      hdrCols.forEach((tc, bi) => {
+        const end = bi + 1 < hdrCols.length ? hdrCols[bi+1] : Math.max(...grid.map(r=>r.length), tc+1);
+        const find = re => { for (let c=tc+1;c<end;c++) if (re.test(grid[hdrRow][c])) return c; return -1; };
+        const setC = find(/^(set|vial|vial set)$/i), pnC = find(/part\s*(no|number|#)|^p\/?n$|^cat/i);
+        const nameC = find(/^panel( name)?$/i);
+        // Dye column: header "Dye", else a "QuantStudio" sub-header, else the cell right after Target.
+        let dyeC = find(/^(dye|reporter)$/i);
+        if (dyeC < 0) for (let r=hdrRow; r<Math.min(grid.length, hdrRow+4) && dyeC<0; r++) for (let c=tc+1;c<end;c++) if (/quantstudio/i.test(grid[r][c])) { dyeC=c; break; }
+        if (dyeC < 0) dyeC = tc + 1;
+        // Panel title: first text above the header within this block, else the "Panel Name" cell.
+        let title = '';
+        for (let r=0;r<hdrRow && !title;r++) for (let c=tc;c<end;c++) if (grid[r][c]) { title=grid[r][c]; break; }
+        if (!title && nameC>=0) for (let r=hdrRow+1;r<grid.length;r++) if (grid[r][nameC]) { title=grid[r][nameC]; break; }
+        const out = []; let lastSet='', lastPn='', auto=0;
+        for (let r=hdrRow+1;r<grid.length;r++) {
+          const target = grid[r][tc], dye = (grid[r][dyeC]||'').toUpperCase();
+          if (!target || !KNOWN_DYES.has(dye)) continue; // blank rows and sub-header rows
+          const setRaw = setC>=0 ? grid[r][setC] : '', pn = pnC>=0 ? grid[r][pnC] : '';
+          if (setRaw) { const cs = cleanVial(setRaw); if (cs !== lastSet) lastPn=''; lastSet = cs; }
+          else if (pn && pn !== lastPn && (setC < 0 || !lastSet)) { lastSet = String(++auto); } // no Set column: a new part number starts a new vial
+          if (pn) lastPn = pn;
+          if (!lastSet) { issues.push(`${title||fallbackName}: "${target}" has no Set`); continue; }
+          out.push({target, dye, vialSet:lastSet, partNumber:lastPn, selected:true});
+        }
+        if (out.length) panels.push({name: title || fallbackName, rows: out});
+      });
+      return {panels, issues};
+    }
+    function loadPartNumberPanels(panelDefs) {
+      pisPanels.length=0; extractedPisTargets.length=0; vialColorMap.clear();
+      wellAssignments.clear(); selectedWells.clear(); targetPickIds.clear(); openedVials.clear();
+      const stamp = Date.now().toString(36);
+      panelDefs.forEach((p,i) => {
+        const panelId = `parts_${stamp}_${i}`;
+        pisPanels.push({id:panelId, name:p.name, count:p.rows.length, color:panelColors[i % panelColors.length]});
+        extractedPisTargets.push(...p.rows.map(r=>({...r, panelId, panelName:p.name})));
+      });
+      refreshPanels();
+      if (pisPanels.length) $('activePanel').value = pisPanels[0].id;
+      renderTargetPicks(); renderPlate();
+      const summary = panelDefs.map(p=>{
+        const v = new Map(); p.rows.forEach(r=>{ if(!v.has(r.vialSet)) v.set(r.vialSet, r.partNumber); });
+        return `${p.name}: ${p.rows.length} targets, ${[...v].map(([s,pn])=>`Vial ${s}${pn?' ('+pn+')':''}`).join(', ')}`;
+      }).join(' | ');
+      $('configStatus').textContent = `${panelDefs.length} panel(s) loaded from part numbers. ${summary}`;
+    }
+    function importPartRows(rows, fallbackName) {
+      const {panels, issues} = partNumberPanelsFromRows(rows, fallbackName || 'Panel');
+      if (!panels.length) { $('configStatus').textContent = 'No valid Target / Dye rows found.' + (issues.length?' '+issues.join('; '):''); return; }
+      setPartsCatalog(panels, issues);
+    }
+    function splitConfigLine(line) {
+      if (line.includes('\t')) return line.split('\t');
+      const cells=[]; let field='', quoted=false;
+      for (let i=0;i<line.length;i++){const c=line[i];
+        if(c==='"'){ if(quoted&&line[i+1]==='"'){field+='"';i++;} else quoted=!quoted; }
+        else if(c===','&&!quoted){cells.push(field);field='';} else field+=c; }
+      cells.push(field); return cells;
+    }
+    function pastedPartRows(text) {
+      const lines = text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(l=>l.trim());
+      const rows = lines.map(splitConfigLine);
+      // Add a header when none was pasted so that columns read Target, Dye, Set, Part Number.
+      if (!rows.some(r=>r.some(c=>/^targets?$/i.test(String(c).trim())))) rows.unshift(['Target','Dye','Set','Part Number']);
+      return rows;
+    }
+    $('partsFile').addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return;
+      partsFileName = file.name;
+      const token = ++currentImportToken;
+      try {
+        const base = $('partsPanelName').value.trim();
+        if (/\.(csv|tsv|txt)$/i.test(file.name)) {
+          if (token !== currentImportToken) return;
+          importPartRows(pastedPartRows(await file.text()), base || file.name.replace(/\.[^.]+$/,''));
+        } else {
+          if (typeof XLSX === 'undefined') throw new Error('Excel parser not loaded. Check internet access or paste the cells instead.');
+          const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
+          const defs = [], issues = [];
+          for (const name of wb.SheetNames) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:'', blankrows:true});
+            const r = partNumberPanelsFromRows(rows, base || name);
+            defs.push(...r.panels); issues.push(...r.issues);
+          }
+          if (token !== currentImportToken) return;
+          if (!defs.length) throw new Error('No valid Target / Dye rows found.');
+          setPartsCatalog(defs, issues);
+        }
+      } catch (err) { $('configStatus').textContent = `Could not read ${file.name}: ${err.message}`; }
+      e.target.value = '';
+    });
+    // ---------- Part-number catalog + search ----------
+    const normPn = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    function setPartsCatalog(panelDefs, issues) {
+      const wasSel = partsSelected.length;
+      pisPanels.length=0; extractedPisTargets.length=0; vialColorMap.clear();
+      wellAssignments.clear(); selectedWells.clear(); targetPickIds.clear(); openedVials.clear();
+      partsSelected = []; partsPanelDefs = panelDefs; partsCatalog = [];
+      for (const p of panelDefs) {
+        const bySet = new Map();
+        for (const r of p.rows) { if (!bySet.has(r.vialSet)) bySet.set(r.vialSet, []); bySet.get(r.vialSet).push(r); }
+        for (const [set, rows] of bySet) {
+          const pn = rows[0].partNumber;
+          if (!pn) { (issues = issues || []).push(`${p.name} Vial ${set} has no part number`); continue; }
+          partsCatalog.push({key:`${partsCatalog.length}`, partNumber:pn, kit:p.name, set, rows});
+        }
+      }
+      refreshPanels(); renderPlate(); renderPartChips();
+      $('partSearch').disabled = !partsCatalog.length;
+      $('configStatus').textContent = `${(partsFileName ? partsFileName + ': ' : '')}${partsCatalog.length} part number(s) from ${panelDefs.length} panel(s) loaded into the catalog. ` + (wasSel ? ' Previous selection and well assignments were cleared.' : '') + (issues && issues.length ? ` (${issues.length} row(s) without a Set or part number skipped.)` : '');
+      $('partSearchStatus').textContent = `${partsCatalog.length} part number(s) searchable.`;
+    }
+    function clearSelectionOnly() { partsSelected = []; renderPartChips(); }
+    const SEL_PANEL_ID = 'partsel';
+    function ensureSelPanel() {
+      let p = pisPanels.find(x => x.id === SEL_PANEL_ID);
+      if (!p) { p = {id:SEL_PANEL_ID, name:'Selected part numbers', count:0, color:panelColors[0]}; pisPanels.unshift(p); }
+      return p;
+    }
+    function addPartToPanel(entry) {
+      if (partsSelected.includes(entry.key)) { $('partSearchStatus').textContent = `${entry.partNumber} is already selected.`; return; }
+      // Reuse targets if this part was added and removed earlier, so existing target ids stay valid.
+      const existing = extractedPisTargets.filter(t => t.partKey === entry.key);
+      ensureSelPanel();
+      if (existing.length) existing.forEach(t => t.selected = true);
+      else {
+        const vialSet = String(new Set(extractedPisTargets.filter(t=>t.panelId===SEL_PANEL_ID).map(t=>t.vialSet)).size + 1);
+        extractedPisTargets.push(...entry.rows.map(r => ({target:r.target, dye:r.dye, vialSet, origSet:entry.set, partNumber:entry.partNumber, partKey:entry.key, selected:true, panelId:SEL_PANEL_ID, panelName:entry.kit})));
+      }
+      partsSelected.push(entry.key);
+      syncSelPanel();
+      $('activePanel').value = SEL_PANEL_ID;
+      const v = extractedPisTargets.find(t => t.partKey === entry.key).vialSet;
+      openedVials.add(v);
+      renderTargetPicks(); renderPlate(); renderPartChips();
+      $('partSearchStatus').textContent = `Added ${entry.partNumber} (${entry.kit}, Vial ${entry.set}) as Vial Set ${v}.`;
+    }
+    function removePartFromPanel(key) {
+      const ids = extractedPisTargets.map((t,i)=>t.partKey===key?i:-1).filter(i=>i>=0);
+      const used = [...wellAssignments.values()].some(a => a.targetIds.some(id => ids.includes(id)));
+      if (used) { showNotice('Clear the wells that use this vial before removing it.'); return; }
+      ids.forEach(i => { extractedPisTargets[i].selected = false; targetPickIds.delete(i); });
+      partsSelected = partsSelected.filter(k => k !== key);
+      syncSelPanel(); renderTargetPicks(); renderPlate(); renderPartChips();
+    }
+    function syncSelPanel() {
+      const n = extractedPisTargets.filter(t => t.panelId===SEL_PANEL_ID && t.selected).length;
+      const keepVal = $('activePanel').value;
+      if (!n) { const i = pisPanels.findIndex(p=>p.id===SEL_PANEL_ID); if (i>=0) pisPanels.splice(i,1); }
+      else ensureSelPanel().count = n;
+      refreshPanels();
+      if (n) { if (keepVal === SEL_PANEL_ID || !keepVal) $('activePanel').value = SEL_PANEL_ID; }
+      renderTargetPicks();
+    }
+    function renderPartChips() {
+      const box = $('partChips'); if (!box) return;
+      box.innerHTML = partsSelected.map(k => { const e = partsCatalog[Number(k)]; if (!e) return '';
+        return `<span class="panel-chip"><strong>${esc(e.partNumber)}</strong> · ${esc(e.kit)} · Vial ${esc(e.set)} · ${e.rows.length} targets <button type="button" class="secondary sm" data-part-remove="${esc(k)}" aria-label="Remove ${esc(e.partNumber)}" style="margin-left:6px;padding:0 6px;">×</button></span>`; }).join('');
+    }
+    $('partChips').addEventListener('click', e => { const b = e.target.closest('[data-part-remove]'); if (b) removePartFromPanel(b.dataset.partRemove); });
+
+    function addPartsFromList(text) {
+      const tokens = text.split(/[,;\n\r\t]+/).map(t => t.trim()).filter(Boolean);
+      const added = [], dup = [], missing = [], ambiguous = [];
+      for (const tok of tokens) {
+        const n = normPn(tok);
+        let hits = partsCatalog.filter(e => normPn(e.partNumber) === n);
+        if (!hits.length) hits = partsCatalog.filter(e => normPn(e.partNumber).startsWith(n));
+        if (!hits.length) { missing.push(tok); continue; }
+        if (hits.length > 1) { ambiguous.push(tok); continue; }
+        const e = hits[0];
+        if (partsSelected.includes(e.key)) { dup.push(e.partNumber); continue; }
+        addPartToPanel(e); added.push(e.partNumber);
+      }
+      const bits = [];
+      if (added.length) bits.push(`Added ${added.length}: ${added.join(', ')}`);
+      if (dup.length) bits.push(`already selected: ${dup.join(', ')}`);
+      if (ambiguous.length) bits.push(`ambiguous (type more digits): ${ambiguous.join(', ')}`);
+      if (missing.length) bits.push(`not found: ${missing.join(', ')}`);
+      $('partSearchStatus').textContent = bits.join(' · ') || 'Nothing to add.';
+      return {added, dup, missing, ambiguous};
+    }
+    let suggestItems = [], suggestIdx = -1;
+    function hideSuggest() { $('partSuggest').hidden = true; $('partSearch').setAttribute('aria-expanded','false'); suggestIdx = -1; $('partSearch').removeAttribute('aria-activedescendant'); }
+    function searchParts(q) {
+      const n = normPn(q); if (!n) return [];
+      const score = e => {
+        const pn = normPn(e.partNumber);
+        if (pn === n) return 0; if (pn.startsWith(n)) return 1; if (pn.includes(n)) return 2;
+        if (normPn(e.kit).includes(n)) return 3;
+        if (e.rows.some(r => normPn(r.target).includes(n))) return 4;
+        return -1;
+      };
+      return partsCatalog.map(e => ({e, s:score(e)})).filter(x => x.s >= 0)
+        .sort((a,b) => a.s-b.s || a.e.partNumber.localeCompare(b.e.partNumber, undefined, {numeric:true})).slice(0, 8).map(x => x.e);
+    }
+    function renderSuggest() {
+      const ul = $('partSuggest');
+      const q = $('partSearch').value.split(/[,;]/).pop();
+      suggestItems = searchParts(q);
+      if (!q.trim()) { hideSuggest(); return; }
+      suggestIdx = suggestItems.length ? 0 : -1;
+      ul.innerHTML = suggestItems.length ? suggestItems.map((e,i) => {
+        const done = partsSelected.includes(e.key);
+        return `<li role="option" id="partOpt${i}" data-i="${i}" aria-selected="${i===suggestIdx}" style="padding:7px 9px;border-radius:6px;cursor:pointer;${i===suggestIdx?'background:var(--bp-teal-50);':''}"><strong>${esc(e.partNumber)}</strong> <span class="muted">· ${esc(e.kit)} · Vial ${esc(e.set)} · ${e.rows.length} targets${done?' · added':''}</span></li>`; }).join('')
+        : '<li role="presentation" class="muted" style="padding:7px 9px;">No matching part number</li>';
+      ul.hidden = false; $('partSearch').setAttribute('aria-expanded','true');
+      if (suggestIdx >= 0) $('partSearch').setAttribute('aria-activedescendant','partOpt'+suggestIdx);
+    }
+    function pickSuggestion(i) {
+      const e = suggestItems[i]; if (!e) return;
+      addPartToPanel(e);
+      const parts = $('partSearch').value.split(/[,;]/); parts.pop();
+      $('partSearch').value = parts.length ? parts.join(', ') + ', ' : '';
+      hideSuggest(); $('partSearch').focus();
+    }
+    $('partSearch').addEventListener('paste', ev => {
+      const t = (ev.clipboardData || window.clipboardData).getData('text');
+      if (/[\n\r;,]/.test(t.trim())) { ev.preventDefault(); const r = addPartsFromList(t); $('partSearch').value = [...r.missing, ...r.ambiguous].join(', '); hideSuggest(); }
+    });
+    $('partSearch').addEventListener('input', renderSuggest);
+    $('partSearch').addEventListener('focus', () => { if ($('partSearch').value.trim()) renderSuggest(); });
+    $('partSearch').addEventListener('keydown', ev => {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        if ($('partSuggest').hidden) renderSuggest();
+        if (!suggestItems.length) return; ev.preventDefault();
+        suggestIdx = (suggestIdx + (ev.key==='ArrowDown'?1:-1) + suggestItems.length) % suggestItems.length;
+        [...$('partSuggest').children].forEach((li,i) => { li.setAttribute('aria-selected', i===suggestIdx); li.style.background = i===suggestIdx ? 'var(--bp-teal-50)' : ''; });
+        $('partSearch').setAttribute('aria-activedescendant','partOpt'+suggestIdx);
+      } else if (ev.key === 'Enter') {
+        const v = $('partSearch').value;
+        if (/[,;]/.test(v)) { ev.preventDefault(); const r = addPartsFromList(v); $('partSearch').value = [...r.missing, ...r.ambiguous].join(', '); hideSuggest(); }
+        else if (!$('partSuggest').hidden && suggestIdx >= 0) { ev.preventDefault(); pickSuggestion(suggestIdx); }
+      }
+      else if (ev.key === 'Escape') { hideSuggest(); }
+    });
+    $('partSuggest').addEventListener('mousedown', ev => { const li = ev.target.closest('[data-i]'); if (li) { ev.preventDefault(); pickSuggestion(Number(li.dataset.i)); } });
+    document.addEventListener('click', ev => { if (!ev.target.closest('#partSearch, #partSuggest')) hideSuggest(); });
     function refreshPanels() {
       const sel=$('activePanel'); const current=sel.value;
       sel.innerHTML=pisPanels.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} (${p.count} targets)</option>`).join('') || '<option value="">Import a configuration first</option>';
@@ -1128,8 +1448,9 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
       const clean = value => String(value ?? '').replace(/[\t\r\n]+/g, ' ').trim();
       const targetKey = value => clean(value).replace(/,\s*/g, '_').toLowerCase();
       const selectedPanel = clean(target.panelName);
-      const selectedVial = clean(target.vialSet);
-      const seen = new Set([`${target.panelId}::${selectedVial}`]);
+      const selectedVial = clean(target.origSet || target.vialSet);
+      const selectedVialKey = clean(target.vialSet);
+      const seen = new Set([`${target.panelId}::${selectedVialKey}`]);
       const shared = [];
       for (const other of extractedPisTargets) {
         if (targetKey(other.target) !== targetKey(target.target)) continue;
@@ -1139,7 +1460,7 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
         seen.add(key);
         shared.push(`${clean(other.panelName)} (Vial ${otherVial})`);
       }
-      return `Kit: ${selectedPanel}; Vial: ${selectedVial}` +
+      return `Kit: ${selectedPanel}; Vial: ${selectedVial}` + (clean(target.partNumber) ? `; Part No: ${clean(target.partNumber)}` : '') +
         (shared.length ? `; Also in: ${shared.join('; ')}` : '');
     }
 
@@ -1157,7 +1478,7 @@ Campylobacter coli\tVIC\tVial 4`.replace(/\t/g,'\t');
           const name = target.target.replace(/,\s*/g, '_');
           if (!byTarget.has(name)) byTarget.set(name, new Set());
           byTarget.get(name).add(targetProvenanceComment(target));
-          bySample.get(assignment.sample).add(`Kit: ${clean(target.panelName)}; Vial: ${clean(target.vialSet)}`);
+          bySample.get(assignment.sample).add(`Kit: ${clean(target.panelName)}; Vial: ${clean(target.origSet || target.vialSet)}${clean(target.partNumber)?`; Part No: ${clean(target.partNumber)}`:''}`);
         }
       }
       const targetLines = [
